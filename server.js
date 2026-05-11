@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 
 const app = express();
@@ -17,117 +16,157 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel(
-  { model: 'gemini-1.5-flash' },
-  { apiVersion: 'v1' }
-);
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const SYSTEM_PROMPT = `You are a world-class UI/UX designer and frontend engineer specializing in design systems.
+// ── Auto-detect best available model ──────────────────────────────────────────
+const PREFERRED_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-pro-vision',
+  'gemini-1.0-pro-vision-001',
+];
 
-IMPORTANT OUTPUT RULES:
-- Return ONLY valid HTML. No markdown fences, no explanations, no prose before or after.
-- The file must be 100% self-contained: all CSS and JS inline, no external files.
-- Google Fonts may be imported via @import inside a <style> tag.
-- All interactive elements (buttons, toggles, modals) must work via embedded <script>.`;
+let ACTIVE_MODEL = null;
 
-const GENERATE_PROMPT = `${SYSTEM_PROMPT}
+async function detectModel() {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  const res = await fetch(url);
+  const data = await res.json();
 
-Analyze the provided visual references (images and/or web page content) and create a COMPLETE design system as a single self-contained HTML file.
+  if (data.error) throw new Error(data.error.message);
 
-The page must include these sections, navigable via a sticky sidebar:
+  const available = (data.models || [])
+    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+    .map(m => m.name.replace('models/', ''));
 
-1. **Brand Overview** — brand name, color story, design philosophy (inferred from references)
-2. **Color System**
-   - Primary palette: 5 swatches (50/100/300/600/900 shades)
-   - Secondary palette: 5 swatches
-   - Semantic: success, warning, error, info
-   - Neutrals: 9 swatches (50–900)
-   - Each swatch shows: color block, name, hex value, CSS variable
-3. **Typography**
-   - Font families used (import from Google Fonts if needed)
-   - Type scale: Display XL, Display L, H1–H6, Body L/M/S, Caption, Code
-   - Each row shows: live text example, size, weight, line-height, CSS var
-4. **Spacing Scale** — base-4 unit system, visual ruler bars from 4px to 128px
-5. **Border Radius** — none/xs/sm/md/lg/xl/full with visual rounded boxes
-6. **Elevation / Shadows** — 6 levels (none to 2xl) as stacked cards
-7. **Components** — fully interactive:
-   - Buttons: Primary, Secondary, Outline, Ghost, Danger
-   - Form elements: text input, textarea, select, checkbox, radio, toggle switch
-   - Badges and Tags (multiple colors)
-   - Alerts: info, success, warning, error
-   - Cards: default, image header, interactive hover
-   - Navigation bar (sample)
-   - Breadcrumbs
-   - Progress bar (animated)
-   - Tooltip (hover to reveal)
-   - Modal (click to open)
-   - Avatar (initials + image variants)
-8. **Design Tokens Reference** — scrollable code block with all CSS custom properties
+  console.log('\n📋 Modelos disponíveis nesta chave:');
+  available.forEach(m => console.log('   •', m));
 
-VISUAL QUALITY:
-- Derive ALL colors, fonts, visual style from the provided references
-- Dark sidebar, clean section layout, subtle section dividers
-- Smooth CSS transitions on all interactive elements
-- Responsive (sidebar collapses on small screens)
+  for (const candidate of PREFERRED_MODELS) {
+    if (available.includes(candidate)) return candidate;
+  }
 
-OUTPUT: Return only the complete HTML file starting with <!DOCTYPE html>.`;
+  // Fallback: pick first available with generateContent + vision (has "vision" or "flash" or "pro")
+  const fallback = available.find(m => m.includes('flash') || m.includes('vision') || m.includes('pro'));
+  if (fallback) return fallback;
 
-const MODIFY_PROMPT = (request) => `${SYSTEM_PROMPT}
+  throw new Error(`Nenhum modelo compatível encontrado. Modelos disponíveis: ${available.join(', ')}`);
+}
 
-Here is the current design system HTML:
+// ── Gemini REST streaming ──────────────────────────────────────────────────────
+async function* streamGemini(parts) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${ACTIVE_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-USER REQUEST: "${request}"
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
+    }),
+  });
 
-Apply ONLY the requested changes. Keep everything else exactly the same.
-Return the COMPLETE updated HTML file starting with <!DOCTYPE html>. No explanations, no markdown fences.`;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status} ${res.statusText}`);
+  }
 
-async function extractUrlContext(url) {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DesignSystemBot/1.0)' },
-    });
-    clearTimeout(timeout);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-    const html = await res.text();
-    const excerpt = html.substring(0, 8000);
-    const styleMatches = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [])
-      .slice(0, 3).join('\n').substring(0, 4000);
-    const fontLinks = (html.match(/<link[^>]*fonts\.googleapis\.com[^>]*>/gi) || []).join('\n');
-    const themeColor = (html.match(/<meta[^>]*theme-color[^>]*>/i) || [''])[0];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
 
-    return `URL: ${url}
-Page HTML (first 8000 chars):
-${excerpt}
-
-Inline styles found:
-${styleMatches}
-
-Font links: ${fontLinks || 'none'}
-Theme color meta: ${themeColor || 'none'}`;
-  } catch {
-    return `URL: ${url} — Could not fetch. Use knowledge of this brand/domain for style analysis.`;
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const json = line.slice(6).trim();
+      if (!json || json === '[DONE]') continue;
+      try {
+        const data = JSON.parse(json);
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) yield text;
+      } catch { /* skip malformed chunk */ }
+    }
   }
 }
 
+// ── Prompts ────────────────────────────────────────────────────────────────────
+const RULES = `IMPORTANT OUTPUT RULES:
+- Return ONLY valid HTML starting with <!DOCTYPE html>. No markdown fences, no explanations.
+- The file must be 100% self-contained: all CSS and JS inline, no external files.
+- Google Fonts may be imported via @import inside a <style> tag.
+- All interactive elements must work via embedded <script>.`;
+
+const GENERATE_PROMPT = `You are a world-class UI/UX designer and frontend engineer.
+Analyze the provided visual references and create a COMPLETE design system as a single self-contained HTML file.
+
+${RULES}
+
+The page must include these sections with a sticky sidebar for navigation:
+
+1. Brand Overview — brand name and design philosophy
+2. Color System — primary (5 shades), secondary (5 shades), semantic (success/warning/error/info), neutrals (9 shades). Each swatch: color block, name, hex, CSS var.
+3. Typography — Google Font import, type scale Display XL to Caption, each with live example, size, weight, line-height
+4. Spacing Scale — base-4 unit, visual bars from 4px to 128px
+5. Border Radius — none/xs/sm/md/lg/xl/full with visual examples
+6. Elevation/Shadows — 6 levels with card examples
+7. Components (fully interactive):
+   Buttons (Primary/Secondary/Outline/Ghost/Danger), Inputs, Textarea, Select, Checkbox, Radio, Toggle Switch,
+   Badges, Alerts (info/success/warning/error), Cards, Navigation bar, Breadcrumbs, Progress bar, Tooltip, Modal, Avatar
+8. Design Tokens Reference — CSS custom properties code block
+
+VISUAL QUALITY: derive ALL colors and fonts from the references. On-brand design system style. Smooth CSS transitions. Responsive.`;
+
+const MODIFY_PROMPT = (request, html) =>
+  `You are a frontend engineer. Modify this design system HTML.
+
+USER REQUEST: "${request}"
+
+Apply ONLY the requested changes. Return the COMPLETE updated HTML.
+${RULES}
+
+Current HTML:
+${html}`;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function sseWrite(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 function stripFences(text) {
   let t = text.trim();
-  if (t.startsWith('```')) {
-    t = t.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
-  }
+  if (t.startsWith('```')) t = t.replace(/^```[a-z]*\n?/, '').replace(/\n?```\s*$/, '').trim();
   return t;
 }
 
+async function extractUrlContext(url) {
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DesignSystemBot/1.0)' },
+    });
+    const html = await res.text();
+    const styles = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).slice(0, 3).join('\n').substring(0, 4000);
+    const fonts = (html.match(/<link[^>]*fonts\.googleapis\.com[^>]*>/gi) || []).join('\n');
+    const theme = (html.match(/<meta[^>]*theme-color[^>]*>/i) || [''])[0];
+    return `URL: ${url}\nHTML excerpt:\n${html.substring(0, 6000)}\nStyles:\n${styles}\nFonts: ${fonts}\nTheme: ${theme}`;
+  } catch {
+    return `URL: ${url} — Could not fetch. Use brand knowledge from the domain.`;
+  }
+}
+
+// ── Routes ─────────────────────────────────────────────────────────────────────
 app.post('/api/generate', upload.array('images', 10), async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -139,11 +178,10 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
     const files = req.files || [];
 
     if (files.length === 0 && urls.length === 0) {
-      sseWrite(res, { error: 'Adicione pelo menos uma imagem OU uma URL — não é necessário ter os dois.' });
+      sseWrite(res, { error: 'Adicione pelo menos uma imagem OU uma URL.' });
       return res.end();
     }
 
-    // Build Gemini parts
     const parts = [{ text: GENERATE_PROMPT }];
 
     for (const file of files) {
@@ -151,29 +189,25 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
       parts.push({ inlineData: { mimeType: file.mimetype, data: file.buffer.toString('base64') } });
     }
 
-    sseWrite(res, { status: 'Buscando conteúdo das URLs...' });
-    for (const url of urls) {
-      const context = await extractUrlContext(url);
-      parts.push({ text: context });
+    if (urls.length > 0) {
+      sseWrite(res, { status: 'Buscando conteúdo das URLs...' });
+      for (const url of urls) {
+        parts.push({ text: await extractUrlContext(url) });
+      }
     }
 
-    sseWrite(res, { status: 'Gerando design system...' });
+    sseWrite(res, { status: `Gerando design system com ${ACTIVE_MODEL}...` });
 
     let accumulated = '';
-    const result = await model.generateContentStream(parts);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        accumulated += text;
-        sseWrite(res, { chunk: text });
-      }
+    for await (const chunk of streamGemini(parts)) {
+      accumulated += chunk;
+      sseWrite(res, { chunk });
     }
 
     sseWrite(res, { done: true, html: stripFences(accumulated) });
     res.end();
   } catch (err) {
-    console.error('Generate error:', err);
+    console.error('Generate error:', err.message);
     sseWrite(res, { error: err.message });
     res.end();
   }
@@ -194,40 +228,38 @@ app.post('/api/modify', async (req, res) => {
 
     sseWrite(res, { status: 'Aplicando alterações...' });
 
-    const parts = [
-      { text: MODIFY_PROMPT(request) },
-      { text: `Current HTML:\n\n${currentHtml}` },
-    ];
-
     let accumulated = '';
-    const result = await model.generateContentStream(parts);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        accumulated += text;
-        sseWrite(res, { chunk: text });
-      }
+    for await (const chunk of streamGemini([{ text: MODIFY_PROMPT(request, currentHtml) }])) {
+      accumulated += chunk;
+      sseWrite(res, { chunk });
     }
 
     sseWrite(res, { done: true, html: stripFences(accumulated) });
     res.end();
   } catch (err) {
-    console.error('Modify error:', err);
+    console.error('Modify error:', err.message);
     sseWrite(res, { error: err.message });
     res.end();
   }
 });
 
+// ── Start ──────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  console.log(`\n✅  Design System Generator rodando em http://localhost:${PORT}\n`);
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`\n❌  Porta ${PORT} já está em uso.`);
-    console.error(`   Tente outra porta: $env:PORT=3001; node server.js\n`);
-  } else {
-    console.error(err);
-  }
-  process.exit(1);
-});
+
+detectModel()
+  .then(model => {
+    ACTIVE_MODEL = model;
+    console.log(`\n✅ Modelo selecionado: ${ACTIVE_MODEL}`);
+    app.listen(PORT, () => {
+      console.log(`✅ Design System Generator rodando em http://localhost:${PORT}\n`);
+    }).on('error', err => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ Porta ${PORT} ocupada. Use: $env:PORT=3001; node server.js\n`);
+      }
+      process.exit(1);
+    });
+  })
+  .catch(err => {
+    console.error('\n❌ Erro ao detectar modelo:', err.message, '\n');
+    process.exit(1);
+  });
