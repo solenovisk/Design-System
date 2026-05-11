@@ -18,7 +18,7 @@ if (!apiKey) {
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -136,7 +136,7 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
     const files = req.files || [];
 
     if (files.length === 0 && urls.length === 0) {
-      sseWrite(res, { error: 'Adicione pelo menos uma imagem ou URL.' });
+      sseWrite(res, { error: 'Adicione pelo menos uma imagem OU uma URL — não é necessário ter os dois.' });
       return res.end();
     }
 
