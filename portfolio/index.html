@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfólio — Agência</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__brand">Portfólio<span>.</span></div>
+    <nav class="topbar__filters">
+      <div class="filter-group" id="categoryFilters">
+        <button class="chip chip--active" data-category="todos">Todos</button>
+      </div>
+      <div class="filter-group filter-group--right">
+        <select id="typeFilter" class="select">
+          <option value="todos">Todos os tipos</option>
+          <option value="hostinger">Hostinger</option>
+          <option value="subdominio">Subdomínio</option>
+          <option value="externo">Externo</option>
+        </select>
+        <input
+          type="search"
+          id="searchInput"
+          class="search"
+          placeholder="Buscar cliente..."
+        />
+      </div>
+    </nav>
+  </header>
+
+  <main id="content" class="content">
+    <div id="loading" class="rows">
+      <div class="row">
+        <div class="row__title skeleton skeleton--text"></div>
+        <div class="row__track">
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row__title skeleton skeleton--text"></div>
+        <div class="row__track">
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+          <div class="card skeleton"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rows" class="rows" hidden></div>
+
+    <div id="grid" class="grid" hidden></div>
+
+    <div id="empty" class="empty" hidden>
+      <p>Nenhum site encontrado.</p>
+      <span>Tente outro filtro ou termo de busca.</span>
+    </div>
+  </main>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

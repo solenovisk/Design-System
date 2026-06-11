@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Portfólio</title>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <!-- Login -->
+  <section id="loginScreen" class="login">
+    <form id="loginForm" class="login__card">
+      <h1>Painel Admin</h1>
+      <p class="login__hint">Modo de demonstração — senha: <code>admin</code></p>
+      <input
+        type="password"
+        id="passwordInput"
+        class="input"
+        placeholder="Senha"
+        autocomplete="current-password"
+        required
+      />
+      <button type="submit" class="btn btn--primary">Entrar</button>
+      <p id="loginError" class="login__error" hidden>Senha incorreta.</p>
+    </form>
+  </section>
+
+  <!-- Panel -->
+  <section id="panel" class="panel" hidden>
+    <header class="panel__header">
+      <h1>Gestão de Sites</h1>
+      <button id="logoutBtn" class="btn btn--ghost">Sair</button>
+    </header>
+
+    <form id="siteForm" class="site-form">
+      <input type="hidden" id="siteId" />
+      <input type="text" id="nomeInput" class="input" placeholder="Nome do cliente" required />
+      <input type="url" id="urlInput" class="input" placeholder="https://..." required />
+      <select id="tipoInput" class="input" required>
+        <option value="" disabled selected>Tipo</option>
+        <option value="hostinger">Hostinger</option>
+        <option value="subdominio">Subdomínio</option>
+        <option value="externo">Externo</option>
+      </select>
+      <input
+        type="text"
+        id="categoriaInput"
+        class="input"
+        list="categoriaOptions"
+        placeholder="Categoria"
+        required
+      />
+      <datalist id="categoriaOptions"></datalist>
+      <button type="submit" class="btn btn--primary" id="submitBtn">Adicionar</button>
+      <button type="button" class="btn btn--ghost" id="cancelEditBtn" hidden>Cancelar</button>
+    </form>
+
+    <div class="table-toolbar">
+      <input type="search" id="tableSearch" class="input" placeholder="Buscar por nome..." />
+      <select id="tableTypeFilter" class="input">
+        <option value="todos">Todos os tipos</option>
+        <option value="hostinger">Hostinger</option>
+        <option value="subdominio">Subdomínio</option>
+        <option value="externo">Externo</option>
+      </select>
+      <select id="tableCategoryFilter" class="input">
+        <option value="todos">Todas as categorias</option>
+      </select>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>URL</th>
+          <th>Tipo</th>
+          <th>Categoria</th>
+          <th>Ativo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <p id="tableEmpty" class="table-empty" hidden>Nenhum site cadastrado.</p>
+  </section>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

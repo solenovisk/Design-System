@@ -1,0 +1,110 @@
+[
+  {
+    "id": "1a2b3c4d-0001",
+    "nome": "Studio Bella Estética",
+    "url": "https://studiobella.com.br",
+    "tipo": "hostinger",
+    "categoria": "Institucional",
+    "ativo": true,
+    "criado_em": "2025-02-10T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0002",
+    "nome": "Café Aroma & Cia",
+    "url": "https://cafearoma.com.br",
+    "tipo": "hostinger",
+    "categoria": "Institucional",
+    "ativo": true,
+    "criado_em": "2025-02-12T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0003",
+    "nome": "Loja Verde Natural",
+    "url": "https://lojaverdenatural.com.br",
+    "tipo": "subdominio",
+    "categoria": "E-commerce",
+    "ativo": true,
+    "criado_em": "2025-02-15T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0004",
+    "nome": "Tech Gadgets Store",
+    "url": "https://techgadgets.com.br",
+    "tipo": "externo",
+    "categoria": "E-commerce",
+    "ativo": true,
+    "criado_em": "2025-02-18T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0005",
+    "nome": "Conecta Imóveis",
+    "url": "https://conectaimoveis.com.br",
+    "tipo": "hostinger",
+    "categoria": "Institucional",
+    "ativo": true,
+    "criado_em": "2025-02-20T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0006",
+    "nome": "Lançamento Black Friday",
+    "url": "https://promo.agencia.com.br",
+    "tipo": "subdominio",
+    "categoria": "Landing Page",
+    "ativo": true,
+    "criado_em": "2025-02-22T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0007",
+    "nome": "Webinar Marketing Digital",
+    "url": "https://webinar.agencia.com.br",
+    "tipo": "subdominio",
+    "categoria": "Landing Page",
+    "ativo": true,
+    "criado_em": "2025-02-25T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0008",
+    "nome": "Blog do João Viajante",
+    "url": "https://joaoviajante.com.br",
+    "tipo": "externo",
+    "categoria": "Blog",
+    "ativo": true,
+    "criado_em": "2025-03-01T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0009",
+    "nome": "Notícias da Bola",
+    "url": "https://noticiasdabola.com.br",
+    "tipo": "hostinger",
+    "categoria": "Blog",
+    "ativo": true,
+    "criado_em": "2025-03-03T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0010",
+    "nome": "Ana Designer Gráfica",
+    "url": "https://anadesigner.com.br",
+    "tipo": "subdominio",
+    "categoria": "Portfólio",
+    "ativo": true,
+    "criado_em": "2025-03-05T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0011",
+    "nome": "Marcelo Fotografia",
+    "url": "https://marcelofotografia.com.br",
+    "tipo": "externo",
+    "categoria": "Portfólio",
+    "ativo": true,
+    "criado_em": "2025-03-08T10:00:00Z"
+  },
+  {
+    "id": "1a2b3c4d-0012",
+    "nome": "Consultório Dr. Lima",
+    "url": "https://drlima.com.br",
+    "tipo": "hostinger",
+    "categoria": "Institucional",
+    "ativo": true,
+    "criado_em": "2025-03-10T10:00:00Z"
+  }
+]
